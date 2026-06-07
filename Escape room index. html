@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<title>Escape Room Fiqh PRO</title>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:radial-gradient(circle,#0b1220,#000);
+color:#fff;
+}
+
+.container{max-width:850px;margin:auto;padding:20px;}
+
+.card{
+background:rgba(255,255,255,0.05);
+padding:15px;
+margin-top:15px;
+border-radius:12px;
+box-shadow:0 0 15px rgba(0,255,255,0.2);
+}
+
+button{
+padding:10px;
+margin-top:8px;
+cursor:pointer;
+border:none;
+border-radius:8px;
+background:#00d4ff;
+color:#000;
+font-weight:bold;
+}
+
+button:hover{background:#00ffcc;}
+
+input{
+padding:10px;
+width:100%;
+margin-top:10px;
+border-radius:8px;
+border:none;
+}
+
+h1{color:#00ffcc;text-shadow:0 0 10px #00ffcc;}
+
+.hidden{display:none;}
+
+.glow{color:#00ffcc;text-shadow:0 0 10px #00ffcc;}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<!-- START -->
+<div id="start">
+<h1>🕌 Escape Room Fiqh PRO</h1>
+<p>Masjid Digital Misteri - Misi Menyelamatkan Solat</p>
+
+<input id="name" placeholder="Nama pemain">
+<button onclick="startGame()">MULA</button>
+</div>
+
+<!-- GAME -->
+<div id="game" class="hidden">
+
+<h3>⏱ Timer: <span id="time">25:00</span></h3>
+<h3 class="glow">⭐ Markah: <span id="score">0</span></h3>
+
+<div class="card">
+<h2 id="roomTitle"></h2>
+<div id="qBox"></div>
+<button onclick="nextQ()">Soalan Seterusnya</button>
+</div>
+
+<div class="card">
+<h3>🔐 Kod Pintu</h3>
+<input id="code" placeholder="Masukkan kod">
+<button onclick="checkCode()">Buka Pintu</button>
+</div>
+
+<div class="card">
+<button onclick="hint()">💡 Hint (<span id="hint">3</span>)</button>
+</div>
+
+<p id="msg"></p>
+
+</div>
+
+<!-- END -->
+<div id="end" class="hidden">
+<h1>🎉 Tahniah!</h1>
+
+<p id="result"></p>
+
+<h3>📄 QR Sijil</h3>
+<div id="qr"></div>
+
+<button onclick="window.print()">Cetak Sijil</button>
+</div>
+
+</div>
+
+<script>
+
+/* ===== AUDIO SYSTEM ===== */
+function beep(type){
+let ctx = new (window.AudioContext || window.webkitAudioContext)();
+let o = ctx.createOscillator();
+let g = ctx.createGain();
+
+o.connect(g);
+g.connect(ctx.destination);
+
+if(type=="correct") o.frequency.value=800;
+if(type=="wrong") o.frequency.value=200;
+if(type=="click") o.frequency.value=500;
+
+o.start();
+g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.3);
+o.stop(ctx.currentTime+0.3);
+}
+
+/* ===== GAME DATA ===== */
+const rooms=[
+{
+title:"Bilik 1: Rukun Solat",
+code:"713",
+q:[
+{q:"Rukun solat ada?",a:["13","11","10"],c:0},
+{q:"Niat ialah?",a:["Rukun","Sunat"],c:0},
+{q:"Batal jika tinggal rukun?",a:["Ya","Tidak"],c:0},
+{q:"Berdiri jika mampu?",a:["Wajib","Sunat"],c:0},
+{q:"Solat tanpa rukun?",a:["Batal","Sah"],c:0}
+]
+},
+{
+title:"Bilik 2: Wuduk",
+code:"514",
+q:[
+{q:"Wuduk sebelum?",a:["Solat","Makan"],c:0},
+{q:"Basuh muka?",a:["Rukun","Sunat"],c:0},
+{q:"Tertib bermaksud?",a:["Urutan","Cepat"],c:0},
+{q:"Tidur nyenyak?",a:["Batal","Sah"],c:0},
+{q:"Berkumur?",a:["Sunat","Rukun"],c:0}
+]
+},
+{
+title:"Bilik 3: Batal Solat",
+code:"902",
+q:[
+{q:"Ketawa dalam solat?",a:["Batal","Sah"],c:0},
+{q:"Makan dalam solat?",a:["Batal","Sah"],c:0},
+{q:"Hadas?",a:["Batal","Sah"],c:0},
+{q:"Bercakap?",a:["Batal","Sah"],c:0},
+{q:"Berpaling banyak?",a:["Batal","Sah"],c:0}
+]
+},
+{
+title:"Bilik 4: Sunat Solat",
+code:"346",
+q:[
+{q:"Tasyahhud awal?",a:["Sunat ab'ad","Rukun"],c:0},
+{q:"Doa iftitah?",a:["Sunat","Wajib"],c:0},
+{q:"Sujud sahwi untuk?",a:["Lupa","Wuduk"],c:0},
+{q:"Angkat tangan?",a:["Sunat","Rukun"],c:0},
+{q:"Takbir?",a:["Allahuakbar","Alhamdulillah"],c:0}
+]
+},
+{
+title:"Bilik 5: Jama' & Qasar",
+code:"628",
+q:[
+{q:"Qasar?",a:["Pendekkan solat","Tambah solat"],c:0},
+{q:"Jama'?",a:["Himpun solat","Pisah"],c:0},
+{q:"Musafir?",a:["Boleh qasar","Tidak"],c:0},
+{q:"Qasar untuk?",a:["4 rakaat","2 rakaat"],c:0},
+{q:"Jama' taqdim?",a:["Awal","Lewat"],c:0}
+]
+}
+];
+
+let r=0,q=0,score=0,hint=3,time=1500,name="";
+
+/* ===== START ===== */
+function startGame(){
+beep("click");
+name=document.getElementById("name").value;
+if(!name)return alert("Isi nama");
+
+document.getElementById("start").classList.add("hidden");
+document.getElementById("game").classList.remove("hidden");
+
+load();
+timer();
+}
+
+/* ===== LOAD ===== */
+function load(){
+q=0;
+document.getElementById("roomTitle").innerText=rooms[r].title;
+show();
+}
+
+/* ===== SHOW Q ===== */
+function show(){
+let data=rooms[r].q[q];
+let html="<h3>"+data.q+"</h3>";
+
+data.a.forEach((x,i)=>{
+html+=`<button onclick="ans(${i})">${x}</button><br>`;
+});
+
+document.getElementById("qBox").innerHTML=html;
+}
+
+/* ===== ANSWER ===== */
+function ans(i){
+let data=rooms[r].q[q];
+
+if(i==data.c){
+score+=4;
+beep("correct");
+document.getElementById("score").innerText=score;
+document.getElementById("msg").innerText="Betul!";
+}else{
+beep("wrong");
+document.getElementById("msg").innerText="Salah!";
+}
+}
+
+/* ===== NEXT ===== */
+function nextQ(){
+beep("click");
+q++;
+if(q>=rooms[r].q.length){
+alert("Masukkan kod pintu");
+return;
+}
+show();
+}
+
+/* ===== CODE ===== */
+function checkCode(){
+let val=document.getElementById("code").value;
+if(val==rooms[r].code){
+beep("correct");
+r++;
+if(r>=rooms.length)end();
+else load();
+}else{
+beep("wrong");
+alert("Salah kod!");
+}
+}
+
+/* ===== HINT ===== */
+function hint(){
+if(hint>0){
+hint--;
+document.getElementById("hint").innerText=hint;
+alert("Fikir rukun & hukum solat");
+}
+}
+
+/* ===== TIMER ===== */
+function timer(){
+setInterval(()=>{
+time--;
+let m=Math.floor(time/60);
+let s=time%60;
+document.getElementById("time").innerText=m+":"+(s<10?"0":"")+s;
+if(time<=0)end();
+},1000);
+}
+
+/* ===== END ===== */
+function end(){
+document.getElementById("game").classList.add("hidden");
+document.getElementById("end").classList.remove("hidden");
+
+let text=`Nama: <b>${name}</b><br>Markah: <b>${score}/100</b>`;
+document.getElementById("result").innerHTML=text;
+
+/* QR CODE */
+let data=`Escape Room Fiqh | Nama:${name} | Markah:${score}/100`;
+
+new QRCode(document.getElementById("qr"),{
+text:data,
+width:180,
+height:180
+});
+}
+</script>
+
+</body>
+</html>
